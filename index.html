@@ -104,6 +104,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
   header{border-radius:0;box-shadow:none}.section{border:0;box-shadow:none}.month-card,.series-card{break-inside:avoid;box-shadow:none}
   @page{size:A4 landscape;margin:8mm}
 }
+.btnrow{display:flex;gap:10px;flex-wrap:nowrap;align-items:center}
 </style>
 </head>
 <body>
@@ -130,36 +131,6 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
     </div>
   </div>
 
-  <div class="ctrlbox">
-    <label for="pivotMetric">Kennzahl</label>
-    <select id="pivotMetric">
-      <option value="roomRevenue">Room Revenue</option>
-      <option value="roomNights">Room Nights</option>
-      <option value="fbRevenue">F&amp;B Revenue</option>
-      <option value="fbpp">F&amp;B / Guest</option>
-      <option value="blockAdr">Block ADR</option>
-    </select>
-
-    <label for="pivotYearMode">Jahr</label>
-    <select id="pivotYearMode">
-      <option value="current">Aktuell</option>
-      <option value="ly">LY</option>
-      <option value="diff">Differenz</option>
-      <option value="pct">Differenz %</option>
-    </select>
-
-    <label for="pivotViewMode">Ansicht</label>
-    <select id="pivotViewMode">
-      <option value="monthsSeries">Monate × Serien</option>
-      <option value="seriesMonths">Serien × Monate</option>
-    </select>
-
-    <label for="pivotSeriesMode">Serie berechnen</label>
-    <select id="pivotSeriesMode">
-      <option value="all">Alle Serien</option>
-    </select>
-  </div>
-
   <div class="mergebox">
     <label for="mergeSeriesA"><strong>CorporateIDs verschmelzen:</strong></label>
     <select id="mergeSeriesA"><option value="">CorporateID A</option></select>
@@ -168,16 +139,23 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
   </div>
 
   <div class="info">
-    Neu: Nach dem Seriennamen sind die Jahres-Summen 2026 und 2025 in getrennten Zeilen sichtbar. Zusätzlich kannst du zwei verschiedene CorporateIDs zu einer Übersicht verschmelzen. Alles andere bleibt 1:1.
+    Neu: Die Pivot-Filter sind jetzt direkt in der Pivot-Übersicht integriert, damit sie nur dort sichtbar sind und nicht den Rest der Ansicht verwirren.
   </div>
 
   <div class="grid">
-    <div class="kpi"><div class="t">Serien</div><div class="v" id="kpiSeries">0</div><div class="s">aktive Gruppen</div></div>
-    <div class="kpi"><div class="t">Monate mit Daten</div><div class="v" id="kpiMonths">0</div><div class="s">Jan–Dez</div></div>
-    <div class="kpi"><div class="t">Room Revenue</div><div class="v mono" id="kpiRoomRevenue">0.00</div><div class="s">aktuell gesamt</div></div>
-    <div class="kpi"><div class="t">Room Nights</div><div class="v mono" id="kpiRoomNights">0</div><div class="s">aktuell gesamt</div></div>
-    <div class="kpi"><div class="t">F&amp;B Revenue</div><div class="v mono" id="kpiFBRevenue">0.00</div><div class="s">aktuell gesamt</div></div>
-    <div class="kpi"><div class="t">Block ADR</div><div class="v mono" id="kpiAdr">0.00</div><div class="s">aus CF_BLK_ADR</div></div>
+    <div class="kpi"><div class="t">Serien 2026</div><div class="v" id="kpiSeries2026">0</div><div class="s">aktive Gruppen</div></div>
+    <div class="kpi"><div class="t">Monate mit Daten 2026</div><div class="v" id="kpiMonths2026">0</div><div class="s">Jan–Dez</div></div>
+    <div class="kpi"><div class="t">Room Revenue 2026</div><div class="v mono" id="kpiRoomRevenue2026">0.00</div><div class="s">nur 2026</div></div>
+    <div class="kpi"><div class="t">Room Nights 2026</div><div class="v mono" id="kpiRoomNights2026">0</div><div class="s">nur 2026</div></div>
+    <div class="kpi"><div class="t">F&amp;B Revenue 2026</div><div class="v mono" id="kpiFBRevenue2026">0.00</div><div class="s">nur 2026</div></div>
+    <div class="kpi"><div class="t">Block ADR 2026</div><div class="v mono" id="kpiAdr2026">0.00</div><div class="s">nur 2026</div></div>
+
+    <div class="kpi"><div class="t">Serien 2025</div><div class="v" id="kpiSeries2025">0</div><div class="s">aktive Gruppen</div></div>
+    <div class="kpi"><div class="t">Monate mit Daten 2025</div><div class="v" id="kpiMonths2025">0</div><div class="s">Jan–Dez</div></div>
+    <div class="kpi"><div class="t">Room Revenue 2025</div><div class="v mono" id="kpiRoomRevenue2025">0.00</div><div class="s">nur 2025</div></div>
+    <div class="kpi"><div class="t">Room Nights 2025</div><div class="v mono" id="kpiRoomNights2025">0</div><div class="s">nur 2025</div></div>
+    <div class="kpi"><div class="t">F&amp;B Revenue 2025</div><div class="v mono" id="kpiFBRevenue2025">0.00</div><div class="s">nur 2025</div></div>
+    <div class="kpi"><div class="t">Block ADR 2025</div><div class="v mono" id="kpiAdr2025">0.00</div><div class="s">nur 2025</div></div>
   </div>
 
   <div class="section">
@@ -189,12 +167,41 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
       </div>
     </div>
     <div id="pivotWrap" class="content">
+      <div class="ctrlbox" style="margin-bottom:12px">
+        <label for="pivotMetric">Kennzahl</label>
+        <select id="pivotMetric">
+          <option value="roomRevenue">Room Revenue</option>
+          <option value="roomNights">Room Nights</option>
+          <option value="fbRevenue">F&amp;B Revenue</option>
+          <option value="fbpp">F&amp;B / Guest</option>
+          <option value="blockAdr">Block ADR</option>
+        </select>
+
+        <label for="pivotYearMode">Jahr</label>
+        <select id="pivotYearMode">
+          <option value="current">Aktuell</option>
+          <option value="ly">LY</option>
+          <option value="diff">Differenz</option>
+          <option value="pct">Differenz %</option>
+        </select>
+
+        <label for="pivotViewMode">Ansicht</label>
+        <select id="pivotViewMode">
+          <option value="monthsSeries">Monate × Serien</option>
+          <option value="seriesMonths">Serien × Monate</option>
+        </select>
+
+        <label for="pivotSeriesMode">Serie berechnen</label>
+        <select id="pivotSeriesMode">
+          <option value="all">Alle Serien</option>
+        </select>
+      </div>
       <div id="pivotPrint" class="table-wrap">
         <table id="pivotTable">
           <thead></thead>
           <tbody></tbody>
         </table>
-      </div>
+      </div></div>
     </div>
   </div>
 
@@ -207,7 +214,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
       </div>
     </div>
     <div id="monthlyWrap" class="content">
-      <div id="monthlyPrint" class="month-stack"></div>
+      <div id="monthlyPrint" class="month-stack"></div></div>
     </div>
   </div>
 
@@ -216,15 +223,16 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
       <div class="section-title">Drei umsatzstärkste Gruppen pro Monat</div>
       <div class="section-actions">
         <button class="btn secondary" onclick="toggleSection('top3Wrap')">öffnen / schließen</button>
+        <button class="btn secondary" onclick="printOnly('top3Print','Top 3 Gruppen pro Monat')">Drucken</button>
       </div>
     </div>
-    <div id="top3Wrap" class="content">
+    <div id="top3Wrap" class="content"><div id="top3Print">
       <div class="table-wrap">
         <table>
           <thead><tr><th>Monat</th><th>🥇 Gruppe</th><th>Revenue</th><th>🥈 Gruppe</th><th>Revenue</th><th>🥉 Gruppe</th><th>Revenue</th></tr></thead>
           <tbody id="top3Body"></tbody>
         </table>
-      </div>
+      </div></div>
     </div>
   </div>
 
@@ -237,7 +245,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
       </div>
     </div>
     <div id="seriesWrap" class="content">
-      <div id="seriesPrint" class="series-grid"></div>
+      <div id="seriesPrint" class="series-grid"></div></div>
     </div>
   </div>
 </div>
@@ -275,7 +283,8 @@ function printOnly(id,title){
   table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #ccc;padding:6px;text-align:center;font-size:10.5px;word-wrap:break-word}
   th{background:#eef3f9;color:#123b66}.left{text-align:left}
   @page{size:A4 landscape;margin:8mm}
-  </style></head><body><h2>${title}</h2>${content}</body></html>`);
+  .btnrow{display:flex;gap:10px;flex-wrap:nowrap;align-items:center}
+</style></head><body><h2>${title}</h2>${content}</body></html>`);
   win.document.close(); win.focus(); win.print();
 }
 function saveStore(){ localStorage.setItem(STORAGE_DATA, JSON.stringify(seriesStore)); }
@@ -329,17 +338,63 @@ function buildMonthlySummary(){
 function buildTop3(){ return monthNames.map((monthName,idx)=>{ const ranked=seriesData.map(s=>({series:s.series,revenue:s.months[idx].cur.roomRevenue||0})).filter(x=>x.revenue!==0).sort((a,b)=>b.revenue-a.revenue); return {month:monthName, top:ranked.slice(0,3)}; }); }
 function isTop3(seriesName,monthIdx){ return buildTop3()[monthIdx].top.some(x=>x.series===seriesName&&x.revenue>0); }
 
-function renderKpis(){
-  document.getElementById("kpiSeries").textContent=seriesData.length;
-  const summary=buildMonthlySummary();
-  document.getElementById("kpiMonths").textContent=summary.filter(m=>m.cur.roomRevenue||m.cur.roomNights||m.cur.fbRevenue).length;
-  let roomRevenue=0, roomNights=0, fbRevenue=0, blockAdrSum=0, count=0;
-  seriesData.forEach(s=>{ const t=seriesTotal(s); roomRevenue+=t.roomRevenue; roomNights+=t.roomNights; fbRevenue+=t.fbRevenue; s.months.forEach(m=>{ if(m.cur.blockAdr||m.cur.roomNights){ blockAdrSum += (m.cur.blockAdr||0); count += 1; } }); });
-  document.getElementById("kpiRoomRevenue").textContent=fmt(roomRevenue);
-  document.getElementById("kpiRoomNights").textContent=fmt0(roomNights);
-  document.getElementById("kpiFBRevenue").textContent=fmt(fbRevenue);
-  document.getElementById("kpiAdr").textContent=fmt(count ? blockAdrSum / count : 0);
+function computeYearKpisFor(yearStr){
+  let roomRevenue=0, roomNights=0, fbRevenue=0, blockAdrSum=0, count=0, seriesCount=0;
+  const monthFlags = new Array(12).fill(false);
+
+  seriesData.forEach(s=>{
+    let hasSeriesData = false;
+    const useCurrent = String(s.currentYear || "") === String(yearStr);
+    const useLy = String(s.lyYear || "") === String(yearStr);
+
+    s.months.forEach((m, idx)=>{
+      const src = useCurrent ? m.cur : (useLy ? m.ly : null);
+      if(!src) return;
+      const hasData = (src.roomRevenue||0)!==0 || (src.roomNights||0)!==0 || (src.fbRevenue||0)!==0 || (src.blockAdr||0)!==0 || (src.fbpp||0)!==0;
+      if(hasData){
+        hasSeriesData = true;
+        monthFlags[idx] = true;
+        roomRevenue += src.roomRevenue || 0;
+        roomNights += src.roomNights || 0;
+        fbRevenue += src.fbRevenue || 0;
+        if((src.blockAdr||0)!==0 || (src.roomNights||0)!==0){
+          blockAdrSum += src.blockAdr || 0;
+          count += 1;
+        }
+      }
+    });
+    if(hasSeriesData) seriesCount += 1;
+  });
+
+  return {
+    seriesCount,
+    monthsWithData: monthFlags.filter(Boolean).length,
+    roomRevenue,
+    roomNights,
+    fbRevenue,
+    adr: count ? blockAdrSum / count : 0
+  };
 }
+
+function renderKpis(){
+  const y2026 = computeYearKpisFor("2026");
+  const y2025 = computeYearKpisFor("2025");
+
+  document.getElementById("kpiSeries2026").textContent = y2026.seriesCount;
+  document.getElementById("kpiMonths2026").textContent = y2026.monthsWithData;
+  document.getElementById("kpiRoomRevenue2026").textContent = fmt(y2026.roomRevenue);
+  document.getElementById("kpiRoomNights2026").textContent = fmt0(y2026.roomNights);
+  document.getElementById("kpiFBRevenue2026").textContent = fmt(y2026.fbRevenue);
+  document.getElementById("kpiAdr2026").textContent = fmt(y2026.adr);
+
+  document.getElementById("kpiSeries2025").textContent = y2025.seriesCount;
+  document.getElementById("kpiMonths2025").textContent = y2025.monthsWithData;
+  document.getElementById("kpiRoomRevenue2025").textContent = fmt(y2025.roomRevenue);
+  document.getElementById("kpiRoomNights2025").textContent = fmt0(y2025.roomNights);
+  document.getElementById("kpiFBRevenue2025").textContent = fmt(y2025.fbRevenue);
+  document.getElementById("kpiAdr2025").textContent = fmt(y2025.adr);
+}
+
 
 function getMetricNumeric(monthObj, metric, yearMode){
   const base = yearMode === "ly" ? monthObj.ly : monthObj.cur;
@@ -808,7 +863,10 @@ document.getElementById("pivotMetric").addEventListener("change", function(){
   pivotState.metric = this.value; savePivot(); renderPivot();
 });
 document.getElementById("pivotYearMode").addEventListener("change", function(){
-  pivotState.yearMode = this.value; savePivot(); renderPivot();
+  pivotState.yearMode = this.value;
+  savePivot();
+  renderKpis();
+  renderPivot();
 });
 document.getElementById("pivotViewMode").addEventListener("change", function(){
   pivotState.viewMode = this.value; savePivot(); renderPivot();
