@@ -63,6 +63,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
 .series-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .series-card{border:1px solid var(--line);border-radius:20px;background:#fff;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.05)}
 .series-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.nationality-select{padding:8px 10px;border:1px solid rgba(18,59,102,.18);background:#fff;border-radius:10px;min-width:220px}
 .year-toggle{appearance:none;border:1px solid rgba(18,59,102,.18);background:#fff;color:var(--blue);padding:8px 10px;border-radius:10px;font-weight:800;cursor:pointer}
 .delete-series-btn{appearance:none;border:1px solid rgba(217,45,32,.20);background:#fff;color:#b42318;padding:8px 10px;border-radius:10px;font-weight:800;cursor:pointer}
 .series-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--line)}
@@ -244,6 +245,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
 <script>
 const STORAGE_DATA = "pms_dashboard_v18_store";
 const STORAGE_PROFILE = "pms_dashboard_v18_profile_fields";
+const STORAGE_NATIONALITY = "pms_dashboard_v23_nationality";
 const STORAGE_PIVOT = "pms_dashboard_v18_pivot_state";
 const monthNames = ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
 const seriesCreamColors = ["#f6e7a8","#dce9f8","#dcefdc","#f6d9e8","#f4e1b7","#d6e6f5","#d9edd2","#f4d6dd","#efe0a6","#d9eaf2","#e2f0d0","#f2d7e6"];
@@ -251,6 +253,7 @@ let seriesStore = {};
 let seriesData = [];
 let currentYear = "";
 let profileFields = {};
+let nationalityFields = {};
 let collapsedPastYears = {};
 let mergedCorporateMap = {};
 let pivotState = {metric:"roomRevenue", yearMode:"current", viewMode:"monthsSeries", seriesMode:"all"};
@@ -279,6 +282,8 @@ function saveStore(){ localStorage.setItem(STORAGE_DATA, JSON.stringify(seriesSt
 function loadStore(){ try{ seriesStore = JSON.parse(localStorage.getItem(STORAGE_DATA)||"{}") || {}; }catch(e){ seriesStore = {}; } }
 function saveProfiles(){ localStorage.setItem(STORAGE_PROFILE, JSON.stringify(profileFields)); }
 function loadProfiles(){ try{ profileFields = JSON.parse(localStorage.getItem(STORAGE_PROFILE)||"{}") || {}; }catch(e){ profileFields = {}; } }
+function saveNationality(){ localStorage.setItem(STORAGE_NATIONALITY, JSON.stringify(nationalityFields)); }
+function loadNationality(){ try{ nationalityFields = JSON.parse(localStorage.getItem(STORAGE_NATIONALITY)||"{}") || {}; }catch(e){ nationalityFields = {}; } }
 function savePivot(){ localStorage.setItem(STORAGE_PIVOT, JSON.stringify(pivotState)); }
 function blankMonths(){ return monthNames.map(() => ({cur:{roomRevenue:0,roomNights:0,fbRevenue:0,blockAdr:0,fbpp:0},ly:{roomRevenue:0,roomNights:0,fbRevenue:0,blockAdr:0,fbpp:0},hasLY:false})); }
 function monthIndexFromValue(v){ const n = Number(v); return Number.isFinite(n) && n>=1 && n<=12 ? n-1 : -1; }
@@ -594,7 +599,19 @@ function renderSeriesBlocks(){
     return `<div class="series-card" style="background:#ffffff; border-color:rgba(18,59,102,.18)">
       <div class="series-head" style="background:${cardColor}; border-bottom:1px solid rgba(18,59,102,.14)">
         <div>
-          <div class="series-title">${escapeHtml(s.series)} <span class="corp">CorporateID: ${escapeHtml(s.corporateId||"–")}</span></div>
+          <div class="series-title">${escapeHtml(s.series)} <span class="corp">CorporateID: ${escapeHtml(s.corporateId||"–")}</span> 
+            <select class="nationality-select" data-nationality-key="${escapeHtml(s.key)}">
+              <option value="" ${!nationalityFields[s.key] ? "selected" : ""}>Nationalität wählen</option>
+              <option value="Europe" ${nationalityFields[s.key]==="Europe" ? "selected" : ""}>Europe</option>
+              <option value="Spain" ${nationalityFields[s.key]==="Spain" ? "selected" : ""}>Spain</option>
+              <option value="India" ${nationalityFields[s.key]==="India" ? "selected" : ""}>India</option>
+              <option value="Latin America (LATAM)" ${nationalityFields[s.key]==="Latin America (LATAM)" ? "selected" : ""}>Latin America (LATAM)</option>
+              <option value="Mexico" ${nationalityFields[s.key]==="Mexico" ? "selected" : ""}>Mexico</option>
+              <option value="Asia" ${nationalityFields[s.key]==="Asia" ? "selected" : ""}>Asia</option>
+              <option value="North America" ${nationalityFields[s.key]==="North America" ? "selected" : ""}>North America</option>
+              <option value="Middle East" ${nationalityFields[s.key]==="Middle East" ? "selected" : ""}>Middle East</option>
+              <option value="Mixed / International" ${nationalityFields[s.key]==="Mixed / International" ? "selected" : ""}>Mixed / International</option>
+            </select></div>
           <div class="series-sub">
             <div><strong>${escapeHtml(s.currentYear||"")}</strong> — Room Revenue ${fmt(totalCur.roomRevenue)} • Room Nights ${fmt0(totalCur.roomNights)} • F&amp;B Revenue ${fmt(totalCur.fbRevenue)}</div>
             ${s.lyYear ? `<div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(18,59,102,.18)"><strong>${escapeHtml(s.lyYear)}</strong> — Room Revenue ${fmt(totalLY.roomRevenue)} • Room Nights ${fmt0(totalLY.roomNights)} • F&amp;B Revenue ${fmt(totalLY.fbRevenue)}</div>` : ``}
@@ -649,6 +666,12 @@ function renderSeriesBlocks(){
     if(!profileFields[key][year]) profileFields[key][year] = {breakfast:"", single:"", doubleTwin:"", triple:"", halfboard:""};
     profileFields[key][year][type] = this.value;
     saveProfiles();
+  }));
+
+  wrap.querySelectorAll("select[data-nationality-key]").forEach(sel=>sel.addEventListener("change", function(){
+    const key=this.getAttribute("data-nationality-key");
+    nationalityFields[key] = this.value;
+    saveNationality();
   }));
 
   wrap.querySelectorAll(".year-toggle").forEach(btn=>btn.addEventListener("click", function(){
@@ -779,7 +802,7 @@ function mergeImport(parsed){
   saveStore();
   renderAll();
 }
-function clearDashboard(){ seriesStore = {}; profileFields = {}; mergedCorporateMap = {}; saveStore(); saveProfiles(); saveMergedCorporateMap(); renderAll(); }
+function clearDashboard(){ seriesStore = {}; profileFields = {}; nationalityFields = {}; mergedCorporateMap = {}; saveStore(); saveProfiles(); saveNationality(); saveMergedCorporateMap(); renderAll(); }
 
 document.getElementById("pivotMetric").addEventListener("change", function(){
   pivotState.metric = this.value; savePivot(); renderPivot();
@@ -844,6 +867,7 @@ function copyFullCodeWithState(){
 
 loadStore();
 loadProfiles();
+loadNationality();
 loadCollapsedPastYears();
 loadMergedCorporateMap();
 renderAll();
