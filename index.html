@@ -172,11 +172,16 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
 .group-month-stack{display:flex;flex-direction:column;gap:22px;width:100%;max-width:none;margin:0 auto}
 .group-month-stack > .month-card{width:min(1720px,98%);margin:0 auto}
 .group-month-layout{display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;width:100%;max-width:1720px;margin:0 auto}
+.group-month-layout > div{width:100%}
 .group-month-layout > div:first-child{min-width:0;width:100%;display:flex;justify-content:center}
-.group-comment-box{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#fafcff,#f3f7fc);padding:16px;box-shadow:0 8px 18px rgba(0,0,0,.04);width:min(1720px,100%);margin:0 auto}
-.group-comment-title{font-weight:900;color:var(--blue);margin-bottom:10px;font-size:16px}
-.group-comment-box textarea{width:100%;min-height:230px;resize:vertical;border:1px solid rgba(18,59,102,.18);border-radius:12px;padding:14px 16px;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5}
-.group-comment-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.group-comment-box{border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,#fafcff,#f3f7fc);padding:18px;box-shadow:0 8px 18px rgba(0,0,0,.04);width:min(1560px,96%);margin:0 auto}
+.group-comment-title{font-weight:900;color:var(--blue);margin-bottom:10px;font-size:16px;text-align:center}
+.group-comment-box textarea{width:100%;min-height:260px;resize:vertical;border:1px solid rgba(18,59,102,.18);border-radius:12px;padding:14px 16px;background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5}
+.group-comment-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:center}
+.group-back-btn{appearance:none;border:1px solid rgba(18,59,102,.18);background:#fff;color:var(--blue);border-radius:999px;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-weight:900;cursor:pointer;margin-left:8px;vertical-align:top;box-shadow:0 4px 10px rgba(0,0,0,.06)}
+.group-back-btn:hover{transform:translateY(-1px);box-shadow:0 6px 12px rgba(0,0,0,.09)}
+.group-name-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.group-name-content{min-width:0;flex:1}
 .group-comment-actions .btn.secondary{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;border:1px solid transparent}
 .group-month-center{width:100%;margin:0 auto;display:flex;justify-content:center}
 .budget-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
@@ -402,6 +407,9 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
           <select id="queueYearFilter" class="queue-filter-select">
             <option value="">Import-Jahr: alle</option>
           </select>
+          <select id="queueMonthFilter" class="queue-filter-select">
+            <option value="">Import-Monat: alle</option>
+          </select>
         </div>
         <span class="queue-note">Ablage bleibt bestehen, bis alle Gruppen zugewiesen oder gelöscht sind.</span>
       </div>
@@ -412,6 +420,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
               <th>✔</th>
               <th class="left">Gruppenname</th>
               <th>Import-Jahr</th>
+              <th>Import-Monat</th>
               <th>CorporateID</th>
               <th>Typ</th>
               <th>Room Revenue</th>
@@ -1249,6 +1258,36 @@ function deleteGroupByKey(type, key){
   if(type === "OS" && osGroupStore[key]){ delete osGroupStore[key]; saveOsGroupStore(); }
   renderAll();
 }
+function moveGroupBackToQueue(type, key){
+  const store = type === "OT" ? otGroupStore : osGroupStore;
+  const row = store[key];
+  if(!row) return;
+  const totalsCur = simpleMonthsTotals(row.currentMonths || []);
+  const totalsLy = simpleMonthsTotals(row.lyMonths || []);
+  queuedGroups.push({
+    queueId: uniqueId("queue"),
+    name: row.name || "",
+    originalName: row.name || "",
+    importYear: row.currentYear || row.lyYear || "",
+    importMonth: getImportMonthLabelFromMonths((row.currentMonths || []).some(m => (m.roomRevenue||0)!==0 || (m.roomNights||0)!==0 || (m.fbRevenue||0)!==0 || (m.blockAdr||0)!==0 || (m.fbpp||0)!==0) ? row.currentMonths : row.lyMonths),
+    corporateId: row.corporateId || "",
+    groupType: type,
+    currentYear: row.currentYear || "",
+    lyYear: row.lyYear || "",
+    currentMonths: (row.currentMonths || blankSimpleMonths()).map(m => ({...m})),
+    lyMonths: (row.lyMonths || blankSimpleMonths()).map(m => ({...m})),
+    totals: {
+      roomRevenue:(totalsCur.roomRevenue||0)+(totalsLy.roomRevenue||0),
+      roomNights:(totalsCur.roomNights||0)+(totalsLy.roomNights||0),
+      fbRevenue:(totalsCur.fbRevenue||0)+(totalsLy.fbRevenue||0)
+    }
+  });
+  delete store[key];
+  saveQueuedGroups();
+  if(type === "OT") saveOtGroupStore();
+  if(type === "OS") saveOsGroupStore();
+  renderAll();
+}
 function renderSeriesFilterBar(){
   const bar = document.getElementById("seriesFilterBar");
   if(!bar) return;
@@ -1448,6 +1487,18 @@ function mergeStandaloneGroupIntoStore(store, group){
   target.name = normalized.name || target.name;
   target.corporateId = corpId || target.corporateId;
 }
+function getImportMonthLabelFromMonths(months){
+  const labels = (months || []).map((m, idx) => {
+    const hasData = (m.roomRevenue||0)!==0 || (m.roomNights||0)!==0 || (m.fbRevenue||0)!==0 || (m.blockAdr||0)!==0 || (m.fbpp||0)!==0;
+    return hasData ? monthNames[idx] : null;
+  }).filter(Boolean);
+  return labels.length ? labels.join(", ") : "";
+}
+function getQueueImportMonthLabel(group){
+  if(group && String(group.importMonth || "").trim()) return String(group.importMonth).trim();
+  return getImportMonthLabelFromMonths(group?.currentMonths || []);
+}
+
 function queueParsedGroups(parsed){
   if(!parsed || !parsed.seriesEntries) return;
   parsed.seriesEntries.forEach(entry => {
@@ -1461,6 +1512,7 @@ function queueParsedGroups(parsed){
       corporateId: cleanCorporateId(entry.corporateId || "") || "",
       groupType: "",
       importYear: entry.year || "",
+      importMonth: getImportMonthLabelFromMonths(currentMonths),
       currentYear: entry.year || "",
       lyYear: "",
       currentMonths,
@@ -1994,6 +2046,7 @@ document.getElementById("importDashboardFile").addEventListener("change", functi
 
 let activeQueueNameFilter = "";
 let activeQueueYearFilter = "";
+let activeQueueMonthFilter = "";
 let activeOTMonthFilter = "all";
 let activeOSMonthFilter = "all";
 
@@ -2096,28 +2149,41 @@ function updateQueueFilterYearOptions(){
   sel.value = years.includes(current) ? current : "";
   activeQueueYearFilter = sel.value;
 }
+function updateQueueFilterMonthOptions(){
+  const sel = document.getElementById("queueMonthFilter");
+  if(!sel) return;
+  const months = Array.from(new Set(queuedGroups.flatMap(g => String(getQueueImportMonthLabel(g) || "").split(",").map(x => x.trim()).filter(Boolean)))).sort((a,b) => monthNames.indexOf(a) - monthNames.indexOf(b));
+  const current = activeQueueMonthFilter;
+  sel.innerHTML = `<option value="">Import-Monat: alle</option>` + months.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+  sel.value = months.includes(current) ? current : "";
+  activeQueueMonthFilter = sel.value;
+}
 
 function getFilteredQueuedGroups(){
   const term = activeQueueNameFilter.trim().toLowerCase();
   const year = activeQueueYearFilter.trim();
+  const month = activeQueueMonthFilter.trim();
   return queuedGroups.filter(g => {
     const okName = !term || String(g.name||"").toLowerCase().includes(term) || String(g.originalName||"").toLowerCase().includes(term);
     const okYear = !year || String(g.importYear||"") === year;
-    return okName && okYear;
+    const monthLabel = getQueueImportMonthLabel(g);
+    const okMonth = !month || monthLabel.split(",").map(x => x.trim()).includes(month);
+    return okName && okYear && okMonth;
   });
 }
 
 function renderQueue(){
   const body = document.getElementById("queueBody");
   updateQueueFilterYearOptions();
+  updateQueueFilterMonthOptions();
   if(!body) return;
   const visibleRows = getFilteredQueuedGroups();
   if(!queuedGroups.length){
-    body.innerHTML = `<tr><td colspan="9" class="left"><span class="group-empty">Keine offenen Gruppen in der Ablage.</span></td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" class="left"><span class="group-empty">Keine offenen Gruppen in der Ablage.</span></td></tr>`;
     return;
   }
   if(!visibleRows.length){
-    body.innerHTML = `<tr><td colspan="9" class="left"><span class="group-empty">Keine Gruppen für den aktuellen Filter gefunden.</span></td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" class="left"><span class="group-empty">Keine Gruppen für den aktuellen Filter gefunden.</span></td></tr>`;
     return;
   }
   body.innerHTML = visibleRows.map(g => {
@@ -2125,6 +2191,7 @@ function renderQueue(){
       <td><input type="checkbox" class="queue-checkbox" data-queue-check="${escapeHtml(g.queueId)}"></td>
       <td class="left"><input class="queue-input" data-queue-name="${escapeHtml(g.queueId)}" value="${escapeHtml(g.name)}"></td>
       <td>${escapeHtml(g.importYear || "–")}</td>
+      <td>${escapeHtml(getQueueImportMonthLabel(g) || "–")}</td>
       <td><input class="queue-input" data-queue-corp="${escapeHtml(g.queueId)}" value="${escapeHtml(g.corporateId || "")}" placeholder="CorporateID"></td>
       <td>
         <select class="queue-select" data-queue-type="${escapeHtml(g.queueId)}" style="min-width:140px">
@@ -2264,8 +2331,8 @@ function renderYearSplitMonthTable(entries, type, monthIdx){
     const r = list26[i];
     const leftMatch = l && match25.has(l.entry.key);
     const rightMatch = r && match26.has(r.entry.key);
-    const leftName = l ? `${escapeHtml(l.entry.name)}${l.entry.corporateId?`<div class="corp">CorporateID: ${escapeHtml(l.entry.corporateId)}</div>`:""}${leftMatch?`<div class="small">ähnlich erkannt</div>`:""}` : '–';
-    const rightName = r ? `${escapeHtml(r.entry.name)}${r.entry.corporateId?`<div class="corp">CorporateID: ${escapeHtml(r.entry.corporateId)}</div>`:""}${rightMatch?`<div class="small">ähnlich erkannt</div>`:""}` : '–';
+    const leftName = l ? `<div class="group-name-row"><div class="group-name-content">${escapeHtml(l.entry.name)}${l.entry.corporateId?`<div class="corp">CorporateID: ${escapeHtml(l.entry.corporateId)}</div>`:""}${leftMatch?`<div class="small">ähnlich erkannt</div>`:""}</div><button class="group-back-btn" title="Zurück in Ablage" data-group-back-type="${type}" data-group-back-key="${escapeHtml(l.entry.key)}">↩</button></div>` : '–';
+    const rightName = r ? `<div class="group-name-row"><div class="group-name-content">${escapeHtml(r.entry.name)}${r.entry.corporateId?`<div class="corp">CorporateID: ${escapeHtml(r.entry.corporateId)}</div>`:""}${rightMatch?`<div class="small">ähnlich erkannt</div>`:""}</div><button class="group-back-btn" title="Zurück in Ablage" data-group-back-type="${type}" data-group-back-key="${escapeHtml(r.entry.key)}">↩</button></div>` : '–';
     return `<tr>
       <td class="left series-cell year25-cell ${leftMatch ? 'match-name' : ''}">${leftName}</td>
       <td class="mono year25-cell ${leftMatch ? 'match-cell-25' : ''}">${l?fmt(l.value.roomRevenue||0):'–'}</td>
@@ -2306,12 +2373,12 @@ function renderYearSplitMonthTable(entries, type, monthIdx){
         <th class="group-name-head left year26-head mid-divider" colspan="5">${type} Groups 2026</th>
       </tr>
       <tr>
-        <th class="year25-head left">${type} Group</th>
+        <th class="year25-head left">${type} Group 2025</th>
         <th class="year25-head">Room Revenue</th>
         <th class="year25-head">Room Nights</th>
         <th class="year25-head">F&amp;B Revenue</th>
         <th class="year25-head">Block ADR</th>
-        <th class="year26-head left mid-divider">${type} Group</th>
+        <th class="year26-head left mid-divider">${type} Group 2026</th>
         <th class="year26-head">Room Revenue</th>
         <th class="year26-head">Room Nights</th>
         <th class="year26-head">F&amp;B Revenue</th>
@@ -2357,7 +2424,7 @@ function renderGroupBlocks(type){
         </div>
         <div class="month-chips"><div class="month-chip">${entries.length} Gruppen gesamt</div></div>
       </div>
-      <div class="content"><div class="group-month-center"><div class="group-month-layout"><div>${renderYearSplitMonthTable(entries, type, idx)}</div><div>${buildGroupCommentPanel(type, idx)}</div></div></div></div>
+      <div class="content"><div class="group-month-center"><div class="group-month-layout"><div>${renderYearSplitMonthTable(entries, type, idx)}</div><div class="group-comment-slot">${buildGroupCommentPanel(type, idx)}</div></div></div></div>
     </div>`;
   }).join("") + `</div>`;
 
@@ -2370,11 +2437,15 @@ function renderGroupBlocks(type){
     setGroupComment(type, month, '');
     renderGroupBlocks(type);
   }));
+  wrap.querySelectorAll('[data-group-back-key]').forEach(btn => btn.addEventListener('click', function(){
+    moveGroupBackToQueue(this.getAttribute('data-group-back-type'), this.getAttribute('data-group-back-key'));
+  }));
 }
 
 function initializeEnhancedUI(){
   const nameInput = document.getElementById("queueNameFilter");
   const yearSelect = document.getElementById("queueYearFilter");
+  const monthSelect = document.getElementById("queueMonthFilter");
   if(nameInput && !nameInput.dataset.bound){
     nameInput.dataset.bound = "1";
     nameInput.addEventListener("input", function(){
@@ -2386,6 +2457,13 @@ function initializeEnhancedUI(){
     yearSelect.dataset.bound = "1";
     yearSelect.addEventListener("change", function(){
       activeQueueYearFilter = this.value || "";
+      renderQueue();
+    });
+  }
+  if(monthSelect && !monthSelect.dataset.bound){
+    monthSelect.dataset.bound = "1";
+    monthSelect.addEventListener("change", function(){
+      activeQueueMonthFilter = this.value || "";
       renderQueue();
     });
   }
