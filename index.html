@@ -188,10 +188,10 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
 .group-name-content{min-width:0;flex:1}
 .group-comment-actions .btn.secondary{background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;border:1px solid transparent}
 .group-month-center{width:100%;margin:0 auto;display:flex;justify-content:center}
-.budget-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-width:100%;overflow:hidden}
+.budget-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:100%;overflow:hidden}
 .budget-card{min-width:0}
 .budget-card table{table-layout:fixed;width:100%}
-.budget-card th,.budget-card td{white-space:normal;font-size:12px;padding:7px 6px;word-break:break-word}
+.budget-card th,.budget-card td{white-space:normal;font-size:11px;padding:6px 4px;word-break:break-word}
 .section{overflow:hidden}
 .series-mini td.monthcol{white-space:normal}
 .mini-delete-btn,.year-delete-btn{appearance:none;border:1px solid rgba(217,45,32,.28);background:#fff;color:#b42318;cursor:pointer;font-weight:900;box-shadow:0 4px 10px rgba(0,0,0,.05)}
@@ -203,7 +203,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
 .budget-card-title{font-size:18px;font-weight:900;color:var(--blue)}
 .budget-card-sub{margin-top:4px;font-size:12px;color:var(--muted);font-weight:700}
 .budget-card .table-wrap{border:0;border-radius:0}
-.budget-input{width:100%;padding:7px 8px;border:1px solid rgba(18,59,102,.18);border-radius:8px;background:#fff;text-align:right;font-weight:700}
+.budget-input{width:100%;padding:6px 6px;border:1px solid rgba(18,59,102,.18);border-radius:8px;background:#fff;text-align:right;font-weight:700;font-size:11px}
 .budget-status-ok{background:rgba(19,138,54,.12)!important;color:#0f6d2b;font-weight:900}
 .budget-status-bad{background:rgba(217,45,32,.12)!important;color:#b42318;font-weight:900}
 .budget-status-empty{background:#fffdf6!important;color:#7b5f00;font-weight:900}
@@ -406,6 +406,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
           <option value="">Typ wählen</option>
           <option value="OT">OT Group</option>
           <option value="OS">OS Group</option>
+          <option value="SERIE">Serie</option>
         </select>
         <select id="queueCorporateSelect" class="queue-select">
           <option value="">CorporateID wählen</option>
@@ -838,18 +839,23 @@ function setBudgetValue(type, monthIdx, value){
   saveBudgetDetails();
 }
 function parseBudgetNumber(value){
-  const s = String(value ?? "").trim().replace(/'/g,"").replace(/\s+/g,"").replace(/,/g, ".");
+  const s = String(value ?? "").trim().replace(/['`]/g,"").replace(/\s+/g,"").replace(/,/g, ".");
   if(!s) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
+}
+function formatBudgetInputDisplay(value){
+  const parsed = parseBudgetNumber(value);
+  if(parsed === null) return String(value ?? "").trim();
+  return Number(parsed).toLocaleString("de-CH",{maximumFractionDigits:2});
 }
 function budgetStatusClass(budget, actual){
   if(budget === null) return "budget-status-empty";
   return actual >= budget ? "budget-status-ok" : "budget-status-bad";
 }
 function budgetStatusLabel(budget, actual){
-  if(budget === null) return "Budget offen";
-  return actual >= budget ? "erreicht" : "offen";
+  if(budget === null) return "kein Budget";
+  return actual >= budget ? "erreicht" : "nicht erreicht";
 }
 function renderBudgetDetails(){
   const actuals = getBudgetActuals2026();
@@ -870,7 +876,7 @@ function renderBudgetDetails(){
       totalActual += actual;
       return `<tr>
         <td class="left"><strong>${escapeHtml(row.month)} 2026</strong></td>
-        <td><input class="budget-input" data-budget-type="${type}" data-budget-month="${idx}" value="${escapeHtml(rawBudget)}" placeholder="Betrag eingeben, z. B. 25000.00"></td>
+        <td><input class="budget-input" data-budget-type="${type}" data-budget-month="${idx}" value="${escapeHtml(formatBudgetInputDisplay(rawBudget))}" placeholder="z. B. 50'000"></td>
         <td class="mono">${fmt(actual)}</td>
         <td class="mono ${diff !== null ? (diff >= 0 ? 'good' : 'bad') : ''}">${diff === null ? "–" : fmt(diff)}</td>
         <td class="${statusClass}">${budgetStatusLabel(parsedBudget, actual)}</td>
@@ -892,15 +898,20 @@ function renderBudgetDetails(){
   if(tourBody) tourBody.innerHTML = renderRows("tour", "tour", "Gesamttotal Tour-Wholesaler Budget 2026");
   if(corpBody) corpBody.innerHTML = renderRows("corporate", "corporate", "Gesamttotal Corporate Budget 2026");
   document.querySelectorAll("[data-budget-type]").forEach(inp => {
+    inp.addEventListener("focus", function(){
+      this.value = String(getBudgetValue(this.getAttribute("data-budget-type"), Number(this.getAttribute("data-budget-month"))) ?? "");
+    });
     inp.addEventListener("input", function(){
       setBudgetValue(this.getAttribute("data-budget-type"), Number(this.getAttribute("data-budget-month")), this.value || "");
     });
     inp.addEventListener("change", function(){
       setBudgetValue(this.getAttribute("data-budget-type"), Number(this.getAttribute("data-budget-month")), this.value || "");
+      this.value = formatBudgetInputDisplay(this.value);
       renderBudgetDetails();
     });
     inp.addEventListener("blur", function(){
       setBudgetValue(this.getAttribute("data-budget-type"), Number(this.getAttribute("data-budget-month")), this.value || "");
+      this.value = formatBudgetInputDisplay(this.value);
       renderBudgetDetails();
     });
   });
@@ -1608,21 +1619,36 @@ function queueParsedGroups(parsed){
 function renderQueue(){
   const body = document.getElementById("queueBody");
   if(!body) return;
+  const nameFilter = String(document.getElementById("queueNameFilter")?.value || "").trim().toLowerCase();
+  const yearFilter = String(document.getElementById("queueYearFilter")?.value || "").trim();
+  const monthFilter = String(document.getElementById("queueMonthFilter")?.value || "").trim();
+  const filtered = queuedGroups.filter(g => {
+    if(nameFilter && !String(g.name || "").toLowerCase().includes(nameFilter)) return false;
+    if(yearFilter && String(g.importYear || "") !== yearFilter) return false;
+    if(monthFilter && !String(getQueueImportMonthLabel(g) || "").split(",").map(x=>x.trim()).includes(monthFilter)) return false;
+    return true;
+  });
   if(!queuedGroups.length){
-    body.innerHTML = `<tr><td colspan="9" class="left"><span class="group-empty">Keine offenen Gruppen in der Ablage.</span></td></tr>`;
+    body.innerHTML = `<tr><td colspan="10" class="left"><span class="group-empty">Keine offenen Gruppen in der Ablage.</span></td></tr>`;
     return;
   }
-  body.innerHTML = queuedGroups.map(g => {
-    return `<tr>
+  if(!filtered.length){
+    body.innerHTML = `<tr><td colspan="10" class="left"><span class="group-empty">Keine Gruppen für die aktuelle Filterung.</span></td></tr>`;
+    return;
+  }
+  body.innerHTML = filtered.map(g => {
+    return `<tr data-queue-visible-row="1">
       <td><input type="checkbox" class="queue-checkbox" data-queue-check="${escapeHtml(g.queueId)}"></td>
       <td class="left"><input class="queue-input" data-queue-name="${escapeHtml(g.queueId)}" value="${escapeHtml(g.name)}"></td>
       <td>${escapeHtml(g.importYear || "–")}</td>
+      <td>${escapeHtml(getQueueImportMonthLabel(g) || "–")}</td>
       <td><input class="queue-input" data-queue-corp="${escapeHtml(g.queueId)}" value="${escapeHtml(g.corporateId || "")}" placeholder="CorporateID"></td>
       <td>
         <select class="queue-select" data-queue-type="${escapeHtml(g.queueId)}" style="min-width:140px">
           <option value="" ${!g.groupType ? "selected" : ""}>Typ wählen</option>
           <option value="OT" ${g.groupType==="OT" ? "selected" : ""}>OT</option>
           <option value="OS" ${g.groupType==="OS" ? "selected" : ""}>OS</option>
+          <option value="SERIE" ${g.groupType==="SERIE" ? "selected" : ""}>Serie</option>
         </select>
       </td>
       <td class="mono">${fmt(g.totals?.roomRevenue || 0)}</td>
@@ -1664,6 +1690,62 @@ function deleteSelectedQueuedGroups(){
   saveQueuedGroups();
   renderAll();
 }
+function addSimpleMonths(baseMonths, addMonths){
+  const maxLen = Math.max((baseMonths||[]).length, (addMonths||[]).length, 12);
+  return Array.from({length:maxLen}, (_, idx) => {
+    const m = (baseMonths || [])[idx] || {};
+    const e = (addMonths || [])[idx] || {};
+    return {
+      roomRevenue:(m.roomRevenue||0)+(e.roomRevenue||0),
+      roomNights:(m.roomNights||0)+(e.roomNights||0),
+      fbRevenue:(m.fbRevenue||0)+(e.fbRevenue||0),
+      blockAdr: ((m.blockAdr||0) || (e.blockAdr||0)) ? ((m.blockAdr||0)+(e.blockAdr||0))/((m.blockAdr?1:0)+(e.blockAdr?1:0)||1) : 0,
+      fbpp: ((m.fbpp||0) || (e.fbpp||0)) ? ((m.fbpp||0)+(e.fbpp||0))/((m.fbpp?1:0)+(e.fbpp?1:0)||1) : 0
+    };
+  });
+}
+function mergeSimpleSeriesYear(seriesName, corpId, year, months){
+  if(!year) return;
+  const safeCorp = effectiveCorporateId(corpId || ("NOID_"+seriesName));
+  let existingKey = Object.keys(seriesStore).find(k => seriesStore[k].corporateId === safeCorp);
+  if(!existingKey){
+    const key = safeCorp + "__" + seriesName;
+    seriesStore[key] = {
+      key,
+      series: seriesName || "Unbenannte Serie",
+      corporateId: safeCorp,
+      currentYear: String(year),
+      lyYear: "",
+      currentMonths: JSON.parse(JSON.stringify(months || blankSimpleMonths())),
+      lyMonths: blankSimpleMonths()
+    };
+    return;
+  }
+  const target = seriesStore[existingKey];
+  const targetCur = Number(target.currentYear || 0);
+  const entryCur = Number(year || 0);
+  if(String(target.currentYear||"") === String(year||"")){
+    target.currentMonths = addSimpleMonths(target.currentMonths || blankSimpleMonths(), months || blankSimpleMonths());
+  } else if(entryCur > targetCur){
+    target.lyYear = target.currentYear || "";
+    target.lyMonths = JSON.parse(JSON.stringify(target.currentMonths || blankSimpleMonths()));
+    target.currentYear = String(year);
+    target.currentMonths = JSON.parse(JSON.stringify(months || blankSimpleMonths()));
+  } else if(String(target.lyYear||"") === String(year||"")){
+    target.lyMonths = addSimpleMonths(target.lyMonths || blankSimpleMonths(), months || blankSimpleMonths());
+  } else {
+    target.lyYear = String(year);
+    target.lyMonths = JSON.parse(JSON.stringify(months || blankSimpleMonths()));
+  }
+  target.series = target.series || seriesName || "Unbenannte Serie";
+  target.corporateId = safeCorp || target.corporateId;
+}
+function mergeQueuedGroupIntoSeriesStore(payload){
+  const seriesName = payload.name || "Unbenannte Serie";
+  const corpId = payload.corporateId || "";
+  if(payload.currentYear) mergeSimpleSeriesYear(seriesName, corpId, payload.currentYear, payload.currentMonths || blankSimpleMonths());
+  if(payload.lyYear) mergeSimpleSeriesYear(seriesName, corpId, payload.lyYear, payload.lyMonths || blankSimpleMonths());
+}
 function assignSelectedQueuedGroups(){
   const selectedIds = Array.from(document.querySelectorAll("[data-queue-check]:checked")).map(cb => cb.getAttribute("data-queue-check"));
   if(!selectedIds.length) return;
@@ -1685,9 +1767,10 @@ function assignSelectedQueuedGroups(){
     };
     if(finalType === "OT") mergeStandaloneGroupIntoStore(otGroupStore, payload);
     if(finalType === "OS") mergeStandaloneGroupIntoStore(osGroupStore, payload);
+    if(finalType === "SERIE") mergeQueuedGroupIntoSeriesStore(payload);
   });
   queuedGroups = remaining;
-  saveQueuedGroups(); saveOtGroupStore(); saveOsGroupStore();
+  saveQueuedGroups(); saveOtGroupStore(); saveOsGroupStore(); saveStore();
   renderAll();
 }
 
@@ -1873,6 +1956,23 @@ function renderGroupBlocks(type){
   }));
 }
 
+function refreshQueueFilterOptions(){
+  const yearSelect = document.getElementById("queueYearFilter");
+  const monthSelect = document.getElementById("queueMonthFilter");
+  if(yearSelect){
+    const current = yearSelect.value || "";
+    const years = Array.from(new Set(queuedGroups.map(g => String(g.importYear || "").trim()).filter(Boolean))).sort();
+    yearSelect.innerHTML = '<option value="">Import-Jahr: alle</option>' + years.map(y => `<option value="${escapeHtml(y)}">${escapeHtml(y)}</option>`).join("");
+    yearSelect.value = years.includes(current) ? current : "";
+  }
+  if(monthSelect){
+    const current = monthSelect.value || "";
+    const months = Array.from(new Set(queuedGroups.flatMap(g => String(getQueueImportMonthLabel(g) || "").split(",").map(x => x.trim()).filter(Boolean)))).sort((a,b)=>monthNames.indexOf(a)-monthNames.indexOf(b));
+    monthSelect.innerHTML = '<option value="">Import-Monat: alle</option>' + months.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+    monthSelect.value = months.includes(current) ? current : "";
+  }
+}
+
 function renderAll(){
   normalizeStoreToSeriesData();
   document.getElementById("pivotMetric").value = pivotState.metric;
@@ -1885,6 +1985,7 @@ function renderAll(){
   renderMonthFilterBar();
   renderMonthlyBlocks();
   renderTop3();
+  refreshQueueFilterOptions();
   renderQueue();
   renderSeriesFilterBar();
   renderSeriesBlocks();
