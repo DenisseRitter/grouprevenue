@@ -125,7 +125,11 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
 .month-total-head{padding:12px 14px;background:linear-gradient(90deg,rgba(18,59,102,.08),rgba(212,175,55,.10));border-bottom:1px solid var(--line);font-weight:900;color:var(--blue)}
 .month-total-body{padding:0}
 .queue-checkbox{transform:scale(1.15);cursor:pointer}
-@media (max-width:1100px){.series-grid,.group-grid,.month-extra-stack{grid-template-columns:1fr}}
+.queue-selection-summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:12px;padding:12px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(90deg,rgba(18,59,102,.04),rgba(212,175,55,.08))}
+.queue-selection-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:0 6px 14px rgba(0,0,0,.04)}
+.queue-selection-card .lbl{font-size:11px;font-weight:900;color:var(--blue);margin-bottom:4px}
+.queue-selection-card .val{font-size:18px;font-weight:900;color:var(--ink)}
+@media (max-width:1100px){.series-grid,.group-grid,.month-extra-stack,.queue-selection-summary{grid-template-columns:1fr}}
 @media print{
   body{background:#fff}.toolbar,.section-actions,.info,.ctrlbox,.queue-toolbar,.mergebox{display:none !important}.wrap{max-width:none;padding:0}
   header{border-radius:0;box-shadow:none}.section{border:0;box-shadow:none}.month-card,.series-card,.month-total-card{break-inside:avoid;box-shadow:none}
@@ -427,6 +431,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
         </div>
         <span class="queue-note">Ablage bleibt bestehen, bis alle Gruppen zugewiesen oder gelöscht sind.</span>
       </div>
+      <div id="queueSelectionSummary" class="queue-selection-summary"></div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -440,6 +445,7 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
               <th>Room Revenue</th>
               <th>Room Nights</th>
               <th>F&amp;B Revenue</th>
+              <th>F&amp;B / Guest</th>
               <th>Aktion</th>
             </tr>
           </thead>
@@ -661,7 +667,14 @@ function normalizeStoreToSeriesData(){
 }
 function seriesTotal(s){ return s.months.reduce((a,m)=>{ a.roomRevenue += m.cur.roomRevenue||0; a.roomNights += m.cur.roomNights||0; a.fbRevenue += m.cur.fbRevenue||0; return a; }, {roomRevenue:0,roomNights:0,fbRevenue:0}); }
 function simpleMonthsTotals(months){
-  return (months || []).reduce((a,m)=>{ a.roomRevenue += m.roomRevenue||0; a.roomNights += m.roomNights||0; a.fbRevenue += m.fbRevenue||0; return a; }, {roomRevenue:0,roomNights:0,fbRevenue:0});
+  return (months || []).reduce((a,m)=>{
+    a.roomRevenue += m.roomRevenue||0;
+    a.roomNights += m.roomNights||0;
+    a.fbRevenue += m.fbRevenue||0;
+    a.fbpp += m.fbpp||0;
+    a.blockAdr += m.blockAdr||0;
+    return a;
+  }, {roomRevenue:0,roomNights:0,fbRevenue:0,fbpp:0,blockAdr:0});
 }
 function storeValues(store){ return Object.values(store || {}).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"de")); }
 
@@ -850,7 +863,7 @@ function budgetStatusClass(budget, actual){
 }
 function budgetStatusLabel(budget, actual){
   if(budget === null) return "Budget offen";
-  return actual >= budget ? "erreicht" : "offen";
+  return actual >= budget ? "erreicht" : "nicht erreicht";
 }
 function renderBudgetDetails(){
   const actuals = getBudgetActuals2026();
@@ -1264,10 +1277,59 @@ function swapStandaloneMonthsForSeries(months){
     roomRevenue: m.roomRevenue || 0,
     roomNights: m.roomNights || 0,
     fbRevenue: m.fbRevenue || 0,
-    fbpp: m.blockAdr || 0,
-    blockAdr: m.fbpp || 0
+    fbpp: m.fbpp || 0,
+    blockAdr: m.blockAdr || 0,
+    __fbppCount: m && m.fbpp ? 1 : 0,
+    __blockAdrCount: m && m.blockAdr ? 1 : 0
   }));
 }
+function toSeriesMonthSource(month){
+  return {
+    roomRevenue: month?.roomRevenue || 0,
+    roomNights: month?.roomNights || 0,
+    fbRevenue: month?.fbRevenue || 0,
+    fbpp: month?.fbpp || 0,
+    blockAdr: month?.blockAdr || 0,
+    __fbppCount: month && month.fbpp ? (month.__fbppCount || 1) : (month?.__fbppCount || 0),
+    __blockAdrCount: month && month.blockAdr ? (month.__blockAdrCount || 1) : (month?.__blockAdrCount || 0)
+  };
+}
+function normalizeSeriesMonth(month){
+  const src = toSeriesMonthSource(month || {});
+  return {
+    roomRevenue: src.roomRevenue,
+    roomNights: src.roomNights,
+    fbRevenue: src.fbRevenue,
+    fbpp: src.fbpp,
+    blockAdr: src.blockAdr,
+    __fbppCount: src.__fbppCount,
+    __blockAdrCount: src.__blockAdrCount
+  };
+}
+function mergeSeriesMonthAverage(baseMonth, addMonth){
+  const base = toSeriesMonthSource(baseMonth || {});
+  const add = toSeriesMonthSource(addMonth || {});
+  const fbppCount = (base.__fbppCount || 0) + (add.__fbppCount || 0);
+  const blockAdrCount = (base.__blockAdrCount || 0) + (add.__blockAdrCount || 0);
+  return {
+    roomRevenue:(base.roomRevenue||0)+(add.roomRevenue||0),
+    roomNights:(base.roomNights||0)+(add.roomNights||0),
+    fbRevenue:(base.fbRevenue||0)+(add.fbRevenue||0),
+    fbpp: fbppCount ? (((base.fbpp||0)*(base.__fbppCount||0))+((add.fbpp||0)*(add.__fbppCount||0)))/fbppCount : 0,
+    blockAdr: blockAdrCount ? (((base.blockAdr||0)*(base.__blockAdrCount||0))+((add.blockAdr||0)*(add.__blockAdrCount||0)))/blockAdrCount : 0,
+    __fbppCount: fbppCount,
+    __blockAdrCount: blockAdrCount
+  };
+}
+function mergeSeriesMonthArraysAverage(targetMonths, addMonths){
+  return Array.from({length:12}, (_, idx) => {
+    const base = normalizeSeriesMonth((targetMonths||[])[idx] || {});
+    const add = normalizeSeriesMonth((addMonths||[])[idx] || {});
+    if(!monthHasValues(add) && !(add.__fbppCount||add.__blockAdrCount)) return base;
+    return mergeSeriesMonthAverage(base, add);
+  });
+}
+
 function mergeQueuedGroupIntoSeries(group){
   const corpId = group.corporateId ? effectiveCorporateId(group.corporateId) : "";
   const seriesCurrentMonths = swapStandaloneMonthsForSeries(group.currentMonths || blankSimpleMonths());
@@ -1290,11 +1352,11 @@ function mergeQueuedGroupIntoSeries(group){
   const applyYear = (yearStr, monthsArr) => {
     if(!yearStr || !(monthsArr||[]).some(monthHasValues)) return;
     if(String(target.currentYear||"") === String(yearStr)){
-      target.currentMonths = mergeMonthArraysSum(target.currentMonths, monthsArr);
+      target.currentMonths = mergeSeriesMonthArraysAverage(target.currentMonths, monthsArr);
       return;
     }
     if(String(target.lyYear||"") === String(yearStr)){
-      target.lyMonths = mergeMonthArraysSum(target.lyMonths, monthsArr);
+      target.lyMonths = mergeSeriesMonthArraysAverage(target.lyMonths, monthsArr);
       return;
     }
     const targetCur = Number(target.currentYear || 0);
@@ -1305,10 +1367,10 @@ function mergeQueuedGroupIntoSeries(group){
         target.lyMonths = JSON.parse(JSON.stringify(target.currentMonths || blankSimpleMonths()));
       }
       target.currentYear = yearStr;
-      target.currentMonths = mergeMonthArraysSum(blankSimpleMonths(), monthsArr);
+      target.currentMonths = mergeSeriesMonthArraysAverage(blankSimpleMonths(), monthsArr);
     } else {
       target.lyYear = yearStr;
-      target.lyMonths = mergeMonthArraysSum(target.lyMonths, monthsArr);
+      target.lyMonths = mergeSeriesMonthArraysAverage(target.lyMonths, monthsArr);
     }
   };
   applyYear(group.currentYear, seriesCurrentMonths);
@@ -1666,7 +1728,7 @@ function queueParsedGroups(parsed){
   parsed.seriesEntries.forEach(entry => {
     const currentMonths = entry.months.map(m => ({...m.cur}));
     const total = simpleMonthsTotals(currentMonths);
-    if(!(total.roomRevenue||total.roomNights||total.fbRevenue)) return;
+    if(!(total.roomRevenue||total.roomNights||total.fbRevenue||total.fbpp||total.blockAdr)) return;
     queuedGroups.push({
       queueId: uniqueId("queue"),
       name: entry.series,
@@ -1679,17 +1741,48 @@ function queueParsedGroups(parsed){
       lyYear: "",
       currentMonths,
       lyMonths: blankSimpleMonths(),
-      totals: total
+      totals: {...total, fbpp: currentMonths.filter(m => (m.fbpp||0)!==0).reduce((a,m)=>a+(m.fbpp||0),0) / Math.max(1,currentMonths.filter(m => (m.fbpp||0)!==0).length), blockAdr: currentMonths.filter(m => (m.blockAdr||0)!==0).reduce((a,m)=>a+(m.blockAdr||0),0) / Math.max(1,currentMonths.filter(m => (m.blockAdr||0)!==0).length)}
     });
   });
   saveQueuedGroups();
+}
+
+function getSelectedQueueSummary(){
+  const selectedIds = Array.from(document.querySelectorAll("[data-queue-check]:checked")).map(cb => cb.getAttribute("data-queue-check"));
+  const selected = queuedGroups.filter(g => selectedIds.includes(g.queueId));
+  const summary = selected.reduce((acc, g) => {
+    acc.count += 1;
+    acc.roomRevenue += g.totals?.roomRevenue || 0;
+    acc.roomNights += g.totals?.roomNights || 0;
+    acc.fbRevenue += g.totals?.fbRevenue || 0;
+    if((g.totals?.fbpp || 0) !== 0){ acc.fbppSum += g.totals.fbpp || 0; acc.fbppCount += 1; }
+    if((g.totals?.blockAdr || 0) !== 0){ acc.blockAdrSum += g.totals.blockAdr || 0; acc.blockAdrCount += 1; }
+    return acc;
+  }, {count:0, roomRevenue:0, roomNights:0, fbRevenue:0, fbppSum:0, fbppCount:0, blockAdrSum:0, blockAdrCount:0});
+  summary.fbpp = summary.fbppCount ? summary.fbppSum / summary.fbppCount : 0;
+  summary.blockAdr = summary.blockAdrCount ? summary.blockAdrSum / summary.blockAdrCount : 0;
+  return summary;
+}
+function renderQueueSelectionSummary(){
+  const el = document.getElementById("queueSelectionSummary");
+  if(!el) return;
+  const s = getSelectedQueueSummary();
+  el.innerHTML = `
+    <div class="queue-selection-card"><div class="lbl">Markierte Zeilen</div><div class="val">${fmt0(s.count)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">Room Revenue total</div><div class="val mono">${fmt(s.roomRevenue)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">Room Nights total</div><div class="val mono">${fmt0(s.roomNights)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">F&amp;B Revenue total</div><div class="val mono">${fmt(s.fbRevenue)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">F&amp;B / Guest Ø</div><div class="val mono">${fmt(s.fbpp)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">Block ADR Ø</div><div class="val mono">${fmt(s.blockAdr)}</div></div>
+  `;
 }
 
 function renderQueue(){
   const body = document.getElementById("queueBody");
   if(!body) return;
   if(!queuedGroups.length){
-    body.innerHTML = `<tr><td colspan="9" class="left"><span class="group-empty">Keine offenen Gruppen in der Ablage.</span></td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="left"><span class="group-empty">Keine offenen Gruppen in der Ablage.</span></td></tr>`;
+    renderQueueSelectionSummary();
     return;
   }
   body.innerHTML = queuedGroups.map(g => {
@@ -1697,6 +1790,7 @@ function renderQueue(){
       <td><input type="checkbox" class="queue-checkbox" data-queue-check="${escapeHtml(g.queueId)}"></td>
       <td class="left"><input class="queue-input" data-queue-name="${escapeHtml(g.queueId)}" value="${escapeHtml(g.name)}"></td>
       <td>${escapeHtml(g.importYear || "–")}</td>
+      <td>${escapeHtml(getQueueImportMonthLabel(g) || "–")}</td>
       <td><input class="queue-input" data-queue-corp="${escapeHtml(g.queueId)}" value="${escapeHtml(g.corporateId || "")}" placeholder="CorporateID"></td>
       <td>
         <select class="queue-select" data-queue-type="${escapeHtml(g.queueId)}" style="min-width:140px">
@@ -1709,6 +1803,7 @@ function renderQueue(){
       <td class="mono">${fmt(g.totals?.roomRevenue || 0)}</td>
       <td class="mono">${fmt0(g.totals?.roomNights || 0)}</td>
       <td class="mono">${fmt(g.totals?.fbRevenue || 0)}</td>
+      <td class="mono">${fmt(g.totals?.fbpp || 0)}</td>
       <td><button class="delete-group-btn" data-queue-delete="${escapeHtml(g.queueId)}">Löschen</button></td>
     </tr>`;
   }).join("");
@@ -1734,9 +1829,12 @@ function renderQueue(){
     saveQueuedGroups();
     renderAll();
   }));
+  body.querySelectorAll("[data-queue-check]").forEach(cb => cb.addEventListener("change", renderQueueSelectionSummary));
+  renderQueueSelectionSummary();
 }
 function toggleAllQueuedRows(flag){
   document.querySelectorAll("[data-queue-check]").forEach(cb => { cb.checked = !!flag; });
+  renderQueueSelectionSummary();
 }
 function deleteSelectedQueuedGroups(){
   const selectedIds = Array.from(document.querySelectorAll("[data-queue-check]:checked")).map(cb => cb.getAttribute("data-queue-check"));
@@ -2336,6 +2434,36 @@ function getFilteredQueuedGroups(){
   });
 }
 
+function getSelectedQueueSummary(){
+  const selectedIds = Array.from(document.querySelectorAll("[data-queue-check]:checked")).map(cb => cb.getAttribute("data-queue-check"));
+  const selected = queuedGroups.filter(g => selectedIds.includes(g.queueId));
+  const summary = selected.reduce((acc, g) => {
+    acc.count += 1;
+    acc.roomRevenue += g.totals?.roomRevenue || 0;
+    acc.roomNights += g.totals?.roomNights || 0;
+    acc.fbRevenue += g.totals?.fbRevenue || 0;
+    if((g.totals?.fbpp || 0) !== 0){ acc.fbppSum += g.totals.fbpp || 0; acc.fbppCount += 1; }
+    if((g.totals?.blockAdr || 0) !== 0){ acc.blockAdrSum += g.totals.blockAdr || 0; acc.blockAdrCount += 1; }
+    return acc;
+  }, {count:0, roomRevenue:0, roomNights:0, fbRevenue:0, fbppSum:0, fbppCount:0, blockAdrSum:0, blockAdrCount:0});
+  summary.fbpp = summary.fbppCount ? summary.fbppSum / summary.fbppCount : 0;
+  summary.blockAdr = summary.blockAdrCount ? summary.blockAdrSum / summary.blockAdrCount : 0;
+  return summary;
+}
+function renderQueueSelectionSummary(){
+  const el = document.getElementById("queueSelectionSummary");
+  if(!el) return;
+  const s = getSelectedQueueSummary();
+  el.innerHTML = `
+    <div class="queue-selection-card"><div class="lbl">Markierte Zeilen</div><div class="val">${fmt0(s.count)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">Room Revenue total</div><div class="val mono">${fmt(s.roomRevenue)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">Room Nights total</div><div class="val mono">${fmt0(s.roomNights)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">F&amp;B Revenue total</div><div class="val mono">${fmt(s.fbRevenue)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">F&amp;B / Guest Ø</div><div class="val mono">${fmt(s.fbpp)}</div></div>
+    <div class="queue-selection-card"><div class="lbl">Block ADR Ø</div><div class="val mono">${fmt(s.blockAdr)}</div></div>
+  `;
+}
+
 function renderQueue(){
   const body = document.getElementById("queueBody");
   updateQueueFilterYearOptions();
@@ -2368,6 +2496,7 @@ function renderQueue(){
       <td class="mono">${fmt(g.totals?.roomRevenue || 0)}</td>
       <td class="mono">${fmt0(g.totals?.roomNights || 0)}</td>
       <td class="mono">${fmt(g.totals?.fbRevenue || 0)}</td>
+      <td class="mono">${fmt(g.totals?.fbpp || 0)}</td>
       <td><button class="delete-group-btn" data-queue-delete="${escapeHtml(g.queueId)}">Löschen</button></td>
     </tr>`;
   }).join("");
@@ -2393,13 +2522,17 @@ function renderQueue(){
     saveQueuedGroups();
     renderAll();
   }));
+  body.querySelectorAll("[data-queue-check]").forEach(cb => cb.addEventListener("change", renderQueueSelectionSummary));
+  renderQueueSelectionSummary();
 }
 
 function toggleAllQueuedRows(flag){
   document.querySelectorAll("[data-queue-check]").forEach(cb => { cb.checked = !!flag; });
+  renderQueueSelectionSummary();
 }
 function toggleVisibleQueuedRows(flag){
   document.querySelectorAll("[data-queue-visible-row] [data-queue-check]").forEach(cb => { cb.checked = !!flag; });
+  renderQueueSelectionSummary();
 }
 
 function getGroupValueForYearMonth(g, year, idx){
@@ -2410,23 +2543,9 @@ function getGroupValueForYearMonth(g, year, idx){
   const lyMonths = g.lyMonths || [];
   const curVal = curMonths[idx] || {};
   const lyVal = lyMonths[idx] || {};
-  const curHasAny = (curMonths || []).some(m => (m.roomRevenue||0)!==0 || (m.roomNights||0)!==0 || (m.fbRevenue||0)!==0 || (m.blockAdr||0)!==0 || (m.fbpp||0)!==0);
-  const lyHasAny = (lyMonths || []).some(m => (m.roomRevenue||0)!==0 || (m.roomNights||0)!==0 || (m.fbRevenue||0)!==0 || (m.blockAdr||0)!==0 || (m.fbpp||0)!==0);
 
   if(currentYear === yearStr) return curVal;
   if(lyYear === yearStr) return lyVal;
-
-  if(yearStr === "2026"){
-    if(curHasAny) return curVal;
-    if(currentYear === "2025" && !lyHasAny) return curVal;
-  }
-  if(yearStr === "2025"){
-    if(lyHasAny) return lyVal;
-    if(currentYear === "2025" && curHasAny) return curVal;
-  }
-
-  if(curHasAny && !lyHasAny) return curVal;
-  if(lyHasAny && !curHasAny) return lyVal;
   return {};
 }
 
