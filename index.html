@@ -345,9 +345,9 @@ th{background:#eef3f9;color:var(--blue);font-weight:900}
 
         <label for="pivotSourceMode">Bereich</label>
         <select id="pivotSourceMode">
-          <option value="series">Nur Serien</option>
+          <option value="series">Serien + OT/OS Totale</option>
           <option value="totals">Nur Totale</option>
-          <option value="all">Serien + Totale</option>
+          <option value="all">Serien + alle Totale</option>
         </select>
 
         <label for="pivotSeriesMode">Serie berechnen</label>
@@ -1034,19 +1034,35 @@ function combineMonthlySummaries(summaries){
 function buildPivotEntities(){
   const entities = [];
   const sourceMode = pivotState.sourceMode || "all";
-  if(sourceMode !== "totals"){
-    filteredSeriesForPivot().forEach(s => entities.push({key:s.key, label:s.series, type:'series', months:s.months}));
-  }
   const seriesSummary = buildMonthlySummary();
   const otSummary = buildStoreMonthlySummary(otGroupStore);
   const osSummary = buildStoreMonthlySummary(osGroupStore);
   const allSummary = combineMonthlySummaries([seriesSummary, otSummary, osSummary]);
-  if(sourceMode !== "series"){
-    entities.push({key:'total_series', label:'Total Serien', type:'summary', months:seriesSummary});
+
+  const pushSeriesRows = () => {
+    filteredSeriesForPivot().forEach(s => entities.push({key:s.key, label:s.series, type:'series', months:s.months}));
+  };
+  const pushGroupTotals = () => {
     entities.push({key:'total_ot', label:'Total OT Groups', type:'summary', months:otSummary});
     entities.push({key:'total_os', label:'Total OS Groups', type:'summary', months:osSummary});
     entities.push({key:'total_all', label:'Total alle Gruppen', type:'summary', months:allSummary});
+  };
+
+  if(sourceMode === "series"){
+    pushSeriesRows();
+    pushGroupTotals();
+    return entities;
   }
+
+  if(sourceMode === "totals"){
+    entities.push({key:'total_series', label:'Total Serien', type:'summary', months:seriesSummary});
+    pushGroupTotals();
+    return entities;
+  }
+
+  pushSeriesRows();
+  entities.push({key:'total_series', label:'Total Serien', type:'summary', months:seriesSummary});
+  pushGroupTotals();
   return entities;
 }
 function renderPivot(){
